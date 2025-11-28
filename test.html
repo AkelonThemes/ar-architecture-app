@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR App - Camera Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, sans-serif;
+            background: #1a1a2e;
+            color: white;
+        }
+        h1 { color: #4fc3f7; }
+        .test-section {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+        .status {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .pass { background: #4caf50; }
+        .fail { background: #f44336; }
+        .pending { background: #ff9800; }
+        video {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 8px;
+            background: #000;
+        }
+        canvas {
+            border: 1px solid #4fc3f7;
+            border-radius: 4px;
+        }
+        button {
+            background: #4fc3f7;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: #000;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #29b6f6; }
+        pre {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 AR Architecture App - System Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Browser Compatibility <span id="browser-status" class="status pending">Testing...</span></h3>
+        <pre id="browser-info"></pre>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. Camera Access <span id="camera-status" class="status pending">Waiting...</span></h3>
+        <button onclick="testCamera()">Test Camera</button>
+        <br><br>
+        <video id="test-video" autoplay playsinline muted></video>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. OpenCV.js <span id="opencv-status" class="status pending">Loading...</span></h3>
+        <div id="opencv-test">
+            <canvas id="test-canvas" width="200" height="150"></canvas>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h3>4. WebGL / Three.js <span id="webgl-status" class="status pending">Testing...</span></h3>
+        <canvas id="webgl-canvas" width="200" height="150"></canvas>
+    </div>
+    
+    <div class="test-section">
+        <h3>5. Device Sensors <span id="sensor-status" class="status pending">Waiting...</span></h3>
+        <p>IMU Data: <span id="imu-data">-</span></p>
+        <button onclick="testSensors()">Request Sensor Permission</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>Summary</h3>
+        <p id="summary">Running tests...</p>
+        <br>
+        <a href="index.html"><button>Launch Full App →</button></a>
+    </div>
+
+    <script src="https://docs.opencv.org/4.8.0/opencv.js" async onload="onOpenCvReady()"></script>
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        window.THREE = THREE;
+    </script>
+    
+    <script>
+        const results = {
+            browser: false,
+            camera: false,
+            opencv: false,
+            webgl: false,
+            sensors: false
+        };
+        
+        // 1. Browser Compatibility
+        function testBrowser() {
+            const info = [];
+            info.push(`User Agent: ${navigator.userAgent}`);
+            info.push(`Platform: ${navigator.platform}`);
+            info.push(`Cookies: ${navigator.cookieEnabled}`);
+            info.push(`Online: ${navigator.onLine}`);
+            info.push(`Media Devices: ${!!navigator.mediaDevices}`);
+            info.push(`getUserMedia: ${!!(navigator.mediaDevices?.getUserMedia)}`);
+            info.push(`WebGL: ${!!document.createElement('canvas').getContext('webgl2')}`);
+            
+            document.getElementById('browser-info').textContent = info.join('\n');
+            
+            const compatible = navigator.mediaDevices && 
+                              navigator.mediaDevices.getUserMedia && 
+                              document.createElement('canvas').getContext('webgl2');
+            
+            results.browser = compatible;
+            updateStatus('browser-status', compatible);
+        }
+        testBrowser();
+        
+        // 2. Camera Test
+        async function testCamera() {
+            const video = document.getElementById('test-video');
+            const status = document.getElementById('camera-status');
+            
+            try {
+                status.textContent = 'Requesting...';
+                status.className = 'status pending';
+                
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                
+                video.srcObject = stream;
+                await video.play();
+                
+                results.camera = true;
+                updateStatus('camera-status', true);
+            } catch (err) {
+                console.error('Camera error:', err);
+                status.textContent = err.message;
+                results.camera = false;
+                updateStatus('camera-status', false);
+            }
+            updateSummary();
+        }
+        
+        // 3. OpenCV Test
+        function onOpenCvReady() {
+            const status = document.getElementById('opencv-status');
+            
+            try {
+                // Test basic OpenCV functionality
+                const mat = new cv.Mat(100, 100, cv.CV_8UC4);
+                mat.setTo([255, 0, 0, 255]); // Red
+                
+                const canvas = document.getElementById('test-canvas');
+                cv.imshow(canvas, mat);
+                
+                mat.delete();
+                
+                results.opencv = true;
+                updateStatus('opencv-status', true);
+            } catch (err) {
+                console.error('OpenCV error:', err);
+                status.textContent = err.message;
+                results.opencv = false;
+                updateStatus('opencv-status', false);
+            }
+            updateSummary();
+        }
+        
+        // 4. WebGL Test
+        function testWebGL() {
+            const canvas = document.getElementById('webgl-canvas');
+            
+            try {
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, canvas.width/canvas.height, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ canvas });
+                
+                const geometry = new THREE.BoxGeometry(1, 1, 1);
+                const material = new THREE.MeshBasicMaterial({ color: 0x4fc3f7 });
+                const cube = new THREE.Mesh(geometry, material);
+                scene.add(cube);
+                
+                camera.position.z = 3;
+                
+                renderer.render(scene, camera);
+                
+                results.webgl = true;
+                updateStatus('webgl-status', true);
+            } catch (err) {
+                console.error('WebGL error:', err);
+                results.webgl = false;
+                updateStatus('webgl-status', false);
+            }
+            updateSummary();
+        }
+        
+        // Wait for THREE to load
+        const checkThree = setInterval(() => {
+            if (window.THREE) {
+                clearInterval(checkThree);
+                testWebGL();
+            }
+        }, 100);
+        
+        // 5. Sensors Test
+        async function testSensors() {
+            const status = document.getElementById('sensor-status');
+            
+            try {
+                // iOS 13+ requires permission
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission !== 'granted') {
+                        throw new Error('Permission denied');
+                    }
+                }
+                
+                window.addEventListener('deviceorientation', (e) => {
+                    document.getElementById('imu-data').textContent = 
+                        `α:${e.alpha?.toFixed(0)}° β:${e.beta?.toFixed(0)}° γ:${e.gamma?.toFixed(0)}°`;
+                    
+                    if (e.alpha !== null) {
+                        results.sensors = true;
+                        updateStatus('sensor-status', true);
+                        updateSummary();
+                    }
+                });
+                
+                // If no events after 2 seconds, sensors not available
+                setTimeout(() => {
+                    if (!results.sensors) {
+                        document.getElementById('imu-data').textContent = 'Not available (desktop?)';
+                        updateStatus('sensor-status', false);
+                        updateSummary();
+                    }
+                }, 2000);
+                
+            } catch (err) {
+                console.error('Sensor error:', err);
+                results.sensors = false;
+                updateStatus('sensor-status', false);
+                updateSummary();
+            }
+        }
+        
+        // On desktop, sensors won't be available - that's OK
+        if (!('DeviceOrientationEvent' in window)) {
+            document.getElementById('imu-data').textContent = 'Not available (desktop)';
+            document.getElementById('sensor-status').textContent = 'N/A';
+        }
+        
+        function updateStatus(elementId, passed) {
+            const el = document.getElementById(elementId);
+            el.textContent = passed ? 'Pass' : 'Fail';
+            el.className = 'status ' + (passed ? 'pass' : 'fail');
+        }
+        
+        function updateSummary() {
+            const required = ['browser', 'opencv', 'webgl'];
+            const optional = ['camera', 'sensors'];
+            
+            const requiredPassed = required.every(k => results[k]);
+            const optionalPassed = optional.filter(k => results[k]).length;
+            
+            let message = '';
+            if (requiredPassed && results.camera) {
+                message = '✅ All systems ready! You can launch the AR app.';
+            } else if (requiredPassed) {
+                message = '⚠️ Core systems ready, but camera access needed. Click "Test Camera" above.';
+            } else {
+                const failed = required.filter(k => !results[k]);
+                message = `❌ Missing requirements: ${failed.join(', ')}. Try a different browser.`;
+            }
+            
+            document.getElementById('summary').textContent = message;
+        }
+    </script>
+</body>
+</html>

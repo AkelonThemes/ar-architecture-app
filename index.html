@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>AR Architecture Viewer</title>
+    <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Loading Screen -->
+        <div id="loading-screen">
+            <div class="loader">
+                <div class="spinner"></div>
+                <p id="loading-status">Initializing AR System...</p>
+                <div class="progress-bar">
+                    <div id="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main AR View -->
+        <div id="ar-container">
+            <!-- Camera Video Feed -->
+            <video id="camera-feed" autoplay playsinline muted></video>
+            
+            <!-- Three.js Canvas Overlay -->
+            <canvas id="ar-canvas"></canvas>
+            
+            <!-- OpenCV Processing Canvas (hidden) -->
+            <canvas id="cv-canvas" style="display: none;"></canvas>
+            
+            <!-- Debug Canvas for feature visualization -->
+            <canvas id="debug-canvas"></canvas>
+        </div>
+
+        <!-- UI Overlay -->
+        <div id="ui-overlay">
+            <!-- Top Bar -->
+            <div id="top-bar">
+                <button id="btn-settings" class="icon-btn" title="Settings">⚙️</button>
+                <div id="tracking-status">
+                    <span id="status-indicator" class="status-searching"></span>
+                    <span id="status-text">Searching for surface...</span>
+                </div>
+                <button id="btn-debug" class="icon-btn" title="Toggle Debug">🔍</button>
+            </div>
+
+            <!-- Center Crosshair -->
+            <div id="crosshair">
+                <svg viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="30" fill="none" stroke="white" stroke-width="2" stroke-dasharray="10,5"/>
+                    <line x1="50" y1="20" x2="50" y2="35" stroke="white" stroke-width="2"/>
+                    <line x1="50" y1="65" x2="50" y2="80" stroke="white" stroke-width="2"/>
+                    <line x1="20" y1="50" x2="35" y2="50" stroke="white" stroke-width="2"/>
+                    <line x1="65" y1="50" x2="80" y2="50" stroke="white" stroke-width="2"/>
+                </svg>
+            </div>
+
+            <!-- Bottom Controls -->
+            <div id="bottom-controls">
+                <button id="btn-place" class="action-btn" disabled>
+                    <span>📍</span>
+                    <span>Place Model</span>
+                </button>
+                <button id="btn-reset" class="action-btn">
+                    <span>🔄</span>
+                    <span>Reset</span>
+                </button>
+                <button id="btn-models" class="action-btn">
+                    <span>🏠</span>
+                    <span>Models</span>
+                </button>
+            </div>
+
+            <!-- Scale Slider -->
+            <div id="scale-control">
+                <label>Scale: <span id="scale-value">1.0x</span></label>
+                <input type="range" id="scale-slider" min="0.1" max="5" step="0.1" value="1">
+            </div>
+
+            <!-- Rotation Control -->
+            <div id="rotation-control">
+                <label>Rotation: <span id="rotation-value">0°</span></label>
+                <input type="range" id="rotation-slider" min="0" max="360" step="1" value="0">
+            </div>
+        </div>
+
+        <!-- Model Selection Panel -->
+        <div id="model-panel" class="panel hidden">
+            <div class="panel-header">
+                <h2>Select House Model</h2>
+                <button id="close-model-panel" class="close-btn">×</button>
+            </div>
+            <div id="model-list">
+                <div class="model-item" data-model="default-house">
+                    <div class="model-preview">🏠</div>
+                    <span>Modern House</span>
+                </div>
+                <div class="model-item" data-model="cottage">
+                    <div class="model-preview">🏡</div>
+                    <span>Cottage</span>
+                </div>
+                <div class="model-item" data-model="apartment">
+                    <div class="model-preview">🏢</div>
+                    <span>Apartment</span>
+                </div>
+                <div class="model-item" data-model="custom">
+                    <div class="model-preview">📁</div>
+                    <span>Load Custom...</span>
+                </div>
+            </div>
+            <input type="file" id="model-upload" accept=".glb,.gltf,.fbx,.obj" hidden>
+        </div>
+
+        <!-- Settings Panel -->
+        <div id="settings-panel" class="panel hidden">
+            <div class="panel-header">
+                <h2>Settings</h2>
+                <button id="close-settings-panel" class="close-btn">×</button>
+            </div>
+            <div class="settings-content">
+                <div class="setting-item">
+                    <label>Show Debug View</label>
+                    <input type="checkbox" id="setting-debug">
+                </div>
+                <div class="setting-item">
+                    <label>Feature Point Count</label>
+                    <input type="range" id="setting-features" min="100" max="1000" value="500">
+                </div>
+                <div class="setting-item">
+                    <label>Tracking Sensitivity</label>
+                    <input type="range" id="setting-sensitivity" min="1" max="10" value="5">
+                </div>
+                <div class="setting-item">
+                    <label>Ground Shadow</label>
+                    <input type="checkbox" id="setting-shadow" checked>
+                </div>
+                <div class="setting-item">
+                    <label>Ambient Lighting</label>
+                    <input type="range" id="setting-ambient" min="0" max="100" value="60">
+                </div>
+            </div>
+        </div>
+
+        <!-- Debug Info -->
+        <div id="debug-info" class="hidden">
+            <div>FPS: <span id="fps">0</span></div>
+            <div>Features: <span id="feature-count">0</span></div>
+            <div>Planes: <span id="plane-count">0</span></div>
+            <div>Pose: <span id="pose-info">-</span></div>
+            <div>IMU: <span id="imu-info">-</span></div>
+        </div>
+    </div>
+
+    <!-- Load OpenCV.js -->
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" id="opencv-script"></script>
+    
+    <script>
+        window.cvReady = false;
+        function onOpenCvReady() {
+            window.cvReady = true;
+            console.log('OpenCV.js loaded successfully');
+            document.dispatchEvent(new Event('opencv-ready'));
+        }
+    </script>
+    
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
