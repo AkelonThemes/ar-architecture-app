@@ -1,10 +1,16 @@
 import { defineConfig } from 'vite';
+import fs from 'fs';
+import path from 'path';
 
 export default defineConfig({
   server: {
-    host: true,
-    https: false, // Set to true if you have SSL certs for camera access on mobile
-    port: 5173
+    host: true, // Listen on all network interfaces
+    port: 5173,
+    // Try to use HTTPS if certificates exist, otherwise HTTP
+    https: fs.existsSync('localhost-key.pem') ? {
+      key: fs.readFileSync('localhost-key.pem'),
+      cert: fs.readFileSync('localhost-cert.pem'),
+    } : false,
   },
   build: {
     outDir: 'dist',
